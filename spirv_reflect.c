@@ -1459,18 +1459,21 @@ static SpvReflectResult ParseType(
 
       case SpvOpTypeBool:
         p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_BOOL;
+        p_type->rawsize = SPIRV_WORD_SIZE;
         break;
 
       case SpvOpTypeInt: {
         p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_INT;
         IF_READU32(result, p_parser, p_node->word_offset + 2, p_type->traits.numeric.scalar.width);
         IF_READU32(result, p_parser, p_node->word_offset + 3, p_type->traits.numeric.scalar.signedness);
+        p_type->rawsize = p_type->traits.numeric.scalar.width / SPIRV_BYTE_WIDTH;
       }
       break;
 
       case SpvOpTypeFloat: {
         p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_FLOAT;
         IF_READU32(result, p_parser, p_node->word_offset + 2, p_type->traits.numeric.scalar.width);
+        p_type->rawsize = p_type->traits.numeric.scalar.width / SPIRV_BYTE_WIDTH;
       }
       break;
 
@@ -1483,6 +1486,9 @@ static SpvReflectResult ParseType(
         Node* p_next_node = FindNode(p_parser, component_type_id);
         if (IsNotNull(p_next_node)) {
           result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
+          uint32_t size = p_type->traits.numeric.vector.component_count *
+              (p_type->traits.numeric.scalar.width / SPIRV_BYTE_WIDTH);
+          p_type->rawsize = size;
         }
         else {
           result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
@@ -1507,6 +1513,12 @@ static SpvReflectResult ParseType(
         // NOTE: Matrix stride is decorated using OpMemberDecoreate - not OpDecoreate.
         if (IsNotNull(p_struct_member_decorations)) {
           p_type->traits.numeric.matrix.stride = p_struct_member_decorations->matrix_stride;
+        }
+        if (IsNotNull(p_struct_member_decorations) && p_struct_member_decorations->is_row_major) {
+          p_type->rawsize = p_type->traits.numeric.matrix.row_count * p_type->traits.numeric.matrix.stride;
+        }
+        else {
+          p_type->rawsize = p_type->traits.numeric.matrix.column_count * p_type->traits.numeric.matrix.stride;
         }
       }
       break;
@@ -1574,6 +1586,14 @@ static SpvReflectResult ParseType(
             if (IsNotNull(p_next_node)) {
               result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
             }
+            uint32_t element_count = (p_type->traits.array.dims_count > 0 ? 1 : 0);
+            for (uint32_t i = 0; i < p_type->traits.array.dims_count; ++i) {
+              if (p_type->traits.array.dims[i] == 0xFFFFFFFF)
+                element_count = 0;
+              else
+                element_count *= p_type->traits.array.dims[i];
+            }
+            p_type->rawsize = element_count * p_type->traits.array.stride;
           }
           else {
             result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
@@ -1627,6 +1647,9 @@ static SpvReflectResult ParseType(
           //p_member_type->type_name = p_member_node->name;
           p_member_type->struct_member_name = p_node->member_names[member_index];
         }
+
+        p_type->rawsize = p_node->member_decorations[p_type->member_count-1].offset.value +
+              p_type->members[p_type->member_count-1].rawsize;
       }
       break;
 

@@ -258,6 +258,7 @@ typedef struct SpvReflectTypeDescription {
   SpvStorageClass                   storage_class;
   SpvReflectTypeFlags               type_flags;
   SpvReflectDecorationFlags         decoration_flags;
+  uint32_t                          rawsize;             // Measured in bytes
 
   struct Traits {
     SpvReflectNumericTraits         numeric;
