@@ -111,6 +111,7 @@ typedef struct Decorations {
   bool                  is_noperspective;
   bool                  is_flat;
   bool                  is_non_writable;
+  bool                  is_depth;
   NumberDecoration      set;
   NumberDecoration      binding;
   NumberDecoration      input_attachment_index;
@@ -758,6 +759,13 @@ static SpvReflectResult ParseNodes(Parser* p_parser)
       }
       break;
 
+        case SpvOpSampledImage:
+        {
+          CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->type_id);
+          CHECKED_READU32(p_parser, p_node->word_offset + 2, p_node->result_id);
+        }
+        break;
+
       case SpvOpVariable:
       {
         CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->type_id);
@@ -1012,6 +1020,36 @@ static SpvReflectResult ParseFunction(Parser* p_parser, Node* p_func_node, Funct
         CHECKED_READU32(p_parser, p_node->word_offset + 3,
                         p_func->accessed_ptrs[p_func->accessed_ptr_count]);
         (++p_func->accessed_ptr_count);
+      }
+      break;
+      case SpvOpImageSampleDrefImplicitLod:
+      case SpvOpImageSampleDrefExplicitLod:
+      case SpvOpImageSampleProjDrefImplicitLod:
+      case SpvOpImageSampleProjDrefExplicitLod:
+      case SpvOpImageDrefGather:
+      case SpvOpImageSparseSampleDrefImplicitLod:
+      case SpvOpImageSparseSampleDrefExplicitLod:
+      case SpvOpImageSparseDrefGather:
+      {
+        uint32_t sampledimage_id,sampler_id;
+        CHECKED_READU32(p_parser, p_node->word_offset + 3,
+                        sampledimage_id);
+        Node* p_sampledimage = FindNode(p_parser, sampledimage_id);
+        CHECKED_READU32(p_parser, p_sampledimage->word_offset + 4,
+                        sampler_id);
+        Node* p_sampler;
+        for(;;) {
+          p_sampler = FindNode(p_parser, sampler_id);
+          if (p_sampler->op == SpvOpVariable)
+            break;
+          else if (p_sampler->op == SpvOpLoad) {
+            CHECKED_READU32(p_parser, p_sampler->word_offset + 3,
+                            sampler_id);
+          } else {
+            assert(!"todo");
+          }
+        };
+        p_sampler->decorations.is_depth = true;
       }
       break;
       default: break;
@@ -1817,6 +1855,7 @@ static SpvReflectResult ParseDescriptorBindings(Parser* p_parser, SpvReflectShad
     p_descriptor->count = 1;
     p_descriptor->uav_counter_id = p_node->decorations.uav_counter_buffer.value;
     p_descriptor->type_description = p_type;
+	p_descriptor->sampler_isdepthsampler = p_node->decorations.is_depth;
 
     // If this is in the StorageBuffer storage class, it's for sure a storage
     // buffer descriptor. We need to handle this case earlier because in SPIR-V

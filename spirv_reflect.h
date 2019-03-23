@@ -229,7 +229,7 @@ typedef struct SpvReflectNumericTraits {
 
 typedef struct SpvReflectImageTraits {
   SpvDim                            dim;
-  uint32_t                          depth;
+  uint32_t                          depth;  // ignored by vulkan / opengl
   uint32_t                          arrayed;
   uint32_t                          ms; // 0: single-sampled; 1: multisampled
   uint32_t                          sampled;
@@ -338,6 +338,7 @@ typedef struct SpvReflectDescriptorBinding {
   SpvReflectBindingArrayTraits        array;
   uint32_t                            count;
   uint32_t                            accessed;
+  uint32_t                            sampler_isdepthsampler;
   uint32_t                            uav_counter_id;
   struct SpvReflectDescriptorBinding* uav_counter_binding;
 
