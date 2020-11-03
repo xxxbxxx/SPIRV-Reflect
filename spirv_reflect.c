@@ -1565,6 +1565,19 @@ static SpvReflectResult ParseType(
 
       case SpvOpTypeImage: {
         p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_EXTERNAL_IMAGE;
+
+        uint32_t image_type_id = (uint32_t)INVALID_VALUE;
+        IF_READU32(result, p_parser, p_node->word_offset + 2, image_type_id);
+        Node* p_next_node = FindNode(p_parser, image_type_id);
+        if (IsNotNull(p_next_node)) {
+          result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
+        }
+        else {
+          result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+        }
+        if (result != SPV_REFLECT_RESULT_SUCCESS) 
+          break;
+
         IF_READU32_CAST(result, p_parser, p_node->word_offset + 3, SpvDim, p_type->traits.image.dim);
         IF_READU32(result, p_parser, p_node->word_offset + 4, p_type->traits.image.depth);
         IF_READU32(result, p_parser, p_node->word_offset + 5, p_type->traits.image.arrayed);
